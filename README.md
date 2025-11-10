@@ -208,3 +208,7 @@ ai-travel-planner/
 - 集成地图 API 优化路线与时长估算。
 - 对接票务/餐厅/景点实时信息与预约能力。
 - 增加会话管理与多轮调整接口；提供导出 PDF/Excel。
+
+
+### APIkey
+- 已经写在config.py文件中

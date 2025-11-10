@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI旅行规划师</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin: 24px; }
+    h1 { margin-bottom: 12px; }
+    .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    textarea { width: 100%; min-height: 100px; }
+    button { padding: 8px 16px; border: none; border-radius: 6px; background: #2563eb; color: white; cursor: pointer; }
+    button.secondary { background: #111827; }
+    .grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+    @media (min-width: 1000px) { .grid { grid-template-columns: 1fr 1fr; } }
+    ul { margin: 0; padding-left: 18px; }
+    .section-title { font-weight: 600; margin-top: 8px; margin-bottom: 8px; }
+    .inline { display: inline-block; margin-right: 8px; }
+    .muted { color: #6b7280; }
+    /* 表单字段统一缩短，不贴边，不超过卡片容器 */
+    .form-field { width: 96% !important; box-sizing: border-box; }
+    textarea.form-field { min-height: 100px; }
+  </style>
+  </head>
+<body>
+  <h1>AI旅行规划师</h1>
+  <div class="card">
+    <form action="/plan" method="post">
+      <div class="section-title">填写旅行需求</div>
+      <div class="grid">
+        <div class="card" style="grid-column: 1 / -1;">
+          <label>计划标题（可自定义）</label>
+          <input class="form-field" type="text" name="title" placeholder="我的旅行计划" value="{{ title }}" style="padding:8px; margin-top:6px;">
+          <div class="muted" style="margin-top:6px;">用于保存到“我的计划”时的标题</div>
+        </div>
+        <div class="card">
+          <label>出行方式（地图路线）</label>
+          <select name="travel_mode" style="width:100%; padding:8px; margin-top:6px;">
+            <option value="driving" {% if not travel_mode or travel_mode == 'driving' %}selected{% endif %}>驾车</option>
+            <option value="walking" {% if travel_mode == 'walking' %}selected{% endif %}>步行</option>
+            <option value="riding" {% if travel_mode == 'riding' %}selected{% endif %}>骑行</option>
+          </select>
+          <div class="muted" style="margin-top:6px;">用于地图路径绘制，不改变行程内容</div>
+        </div>
+        <div class="card">
+          <label>旅行目的地</label>
+          <input class="form-field" type="text" name="destination" placeholder="例如：日本 / 泰国 / 法国" value="{{ destination }}" style="padding:8px; margin-top:6px;">
+          <div style="margin-top:8px;">
+            <button type="button" class="secondary" onclick="window.voiceInput.start('input[name=destination]', this)">语音输入</button>
+          </div>
+        </div>
+        <div class="card">
+          <label>多个城市（顺序访问）</label>
+          <input class="form-field" type="text" name="cities_text" placeholder="例如：东京, 京都, 大阪 或 Paris Nice Lyon" value="{{ cities_text }}" style="padding:8px; margin-top:6px;">
+          <div class="muted" style="margin-top:6px;">可填写多个城市，用逗号或空格分隔；将按填写顺序安排跨城行程</div>
+          <div style="margin-top:8px;">
+            <button type="button" class="secondary" onclick="window.voiceInput.start('input[name=cities_text]', this)">语音输入</button>
+          </div>
+        </div>
+        <div class="card">
+          <label>日期范围</label>
+          <div style="display:flex; gap:8px; margin-top:6px;">
+            <input id="start_date" type="date" name="start_date" value="{{ start_date }}" style="flex:1; padding:8px;">
+            <input id="end_date" type="date" name="end_date" value="{{ end_date }}" style="flex:1; padding:8px;">
+          </div>
+          <div id="days_auto_hint" class="muted" style="margin-top:6px;"></div>
+        </div>
+        <div class="card">
+          <label>总预算（人民币）</label>
+          <input class="form-field" type="number" name="budget_cny" min="0" placeholder="例如：10000" value="{{ budget_cny if budget_cny else '' }}" style="padding:8px; margin-top:6px;">
+        </div>
+        <div class="card">
+          <label>同行人数</label>
+          <div style="display:flex; gap:8px; margin-top:6px;">
+            <div style="flex:1;">
+              <label for="adults" class="muted">成人人数</label>
+              <input id="adults" class="form-field" type="number" name="adults" min="1" value="{{ adults }}" placeholder="成人人数" style="padding:8px; margin-top:6px;">
+            </div>
+            <div style="flex:1;">
+              <label for="children" class="muted">儿童人数</label>
+              <input id="children" class="form-field" type="number" name="children" min="0" value="{{ children }}" placeholder="儿童人数" style="padding:8px; margin-top:6px;">
+            </div>
+          </div>
+        </div>
+        <div class="card" style="grid-column: 1 / -1;">
+          <label>旅行偏好</label>
+          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;">
+            {% set options = ["美食","文化","冒险","购物","亲子","动漫","自然","海岛","博物馆","历史"] %}
+            {% for opt in options %}
+              <label style="display:inline-flex; align-items:center; gap:6px; border:1px solid #e5e7eb; border-radius:6px; padding:6px 10px;">
+                <input type="checkbox" name="preferences" value="{{ opt }}" {% if preferences and opt in preferences %}checked{% endif %}>
+                <span>{{ opt }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="card" style="grid-column: 1 / -1;">
+          <label>补充信息（选填）</label>
+          <textarea class="form-field" name="extra_info" placeholder="例如：老人同行，行走不便；希望避开人流高峰；需要安排接送机；携带宠物；对海鲜过敏等">{{ extra_info }}</textarea>
+          <div class="muted" style="margin-top:6px;">将基于此生成更贴合你的“实用信息”等提示</div>
+          <div style="margin-top:8px;">
+            <button type="button" class="secondary" onclick="window.voiceInput.start('textarea[name=extra_info]', this)">语音输入</button>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top: 12px;">
+        <button type="submit">生成行程</button>
+      </div>
+    </form>
+    {# 移除本地导出功能，仅保留云端保存入口 #}
+  </div>
+
+  {% if result %}
+  <div class="grid">
+    <div class="card">
+      <div class="section-title">行程概览</div>
+      <div>目的地：{{ result['行程概览']['目的地'] }} | 城市：{{ result['行程概览']['城市'] }}</div>
+      <div>天数：{{ result['行程概览']['天数'] }} | 总预算(¥)：{{ result['行程概览']['总预算'] or '未指定' }}</div>
+      <div>人数：成人 {{ result['行程概览']['人数']['adults'] }}，儿童 {{ result['行程概览']['人数']['children'] }}</div>
+      <div>主题标签：
+        {% if result['行程概览']['旅行主题'] %}
+          {{ ", ".join(result['行程概览']['旅行主题']) }}
+        {% else %}
+          <span class="muted">无</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">费用明细表</div>
+      <div class="section-title">预算分配</div>
+      <ul>
+        {% for k, v in result['费用明细表']['预算分配'].items() %}
+          <li>{{ k }}：¥{{ v }}</li>
+        {% endfor %}
+      </ul>
+      <div class="section-title">估算费用</div>
+      <ul>
+        {% for k, v in result['费用明细表']['估算费用'].items() %}
+          <li>{{ k }}：¥{{ v }}</li>
+        {% endfor %}
+      </ul>
+      <div class="section-title">建议档位</div>
+      <ul>
+        {% for k, v in result['费用明细表']['建议档位'].items() %}
+          <li>{{ k }}：¥{{ v }}</li>
+        {% endfor %}
+      </ul>
+      {% if result['费用明细表']['实际支出']['warning'] %}
+        <div class="section-title">超支预警</div>
+        <ul>
+          {% for w in result['费用明细表']['实际支出']['warning'] %}
+            <li>{{ w }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+
+    <div class="card" id="schedule-section" style="grid-column: 1 / -1;">
+      <div class="section-title">详细日程</div>
+      {% for day in result['详细日程'] %}
+        <div class="card">
+          <div><strong>{{ day['日期'] }}</strong> ｜ 主题：{{ day['主题'] }}</div>
+          <ul>
+            {% for item in day['安排'] %}
+              {% if item.get('地点') %}
+                <li>{{ item['地点'] }}（{{ item.get('类型','') }}）｜ 时间：{{ item.get('开放时间','') }}｜ 门票：¥{{ item.get('门票(¥)',0) }}｜ 时长：{{ item.get('游玩时长(h)',2) }}h｜ 区域：{{ item.get('区域','') }}</li>
+              {% elif item.get('餐厅') %}
+                <li>餐厅：{{ item['餐厅'] }}（{{ item.get('美食类型','') }}）｜ 人均：¥{{ item.get('人均(¥)',0) }}｜ 位置：{{ item.get('位置','') }}</li>
+              {% endif %}
+            {% endfor %}
+          </ul>
+          <div class="muted">备注：{{ day['备注'] }}</div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="card">
+      <div class="section-title">住宿推荐</div>
+      <div>酒店：{{ result['住宿推荐']['name'] }}｜ 区域：{{ result['住宿推荐']['area'] }}</div>
+      <div>价格区间(¥)：{{ result['住宿推荐']['price_range_cny'][0] }} - {{ result['住宿推荐']['price_range_cny'][1] }}</div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">交通建议</div>
+      <div>机场进城：</div>
+      <ul>
+        {% for t in result['交通建议']['airport_city'] %}
+          <li>{{ t['route'] }} ｜ {{ t['mode'] }} ｜ 约 ¥{{ t['cost_cny'] }} ｜ {{ t['duration_min'] }} 分钟</li>
+        {% endfor %}
+      </ul>
+      <div>当地交通卡/票：</div>
+      <ul>
+        {% for t in result['交通建议']['local'] %}
+          <li>{{ t.get('card') or t.get('pass') }} ｜ {{ t['benefit'] }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="card" style="grid-column: 1 / -1;">
+      <div class="section-title">实用信息</div>
+      <div>天气提示：{{ result['实用信息']['天气提示'] }}</div>
+      <div>交通卡/优惠：</div>
+      <ul>
+        {% for tip in result['实用信息']['交通卡/优惠'] %}
+          <li>{{ tip }}</li>
+        {% endfor %}
+      </ul>
+      <div>注意事项：</div>
+      <ul>
+        {% for note in result['实用信息']['注意事项'] %}
+          <li>{{ note }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div class="card" style="grid-column: 1 / -1;">
+      <div class="section-title">地图可视化</div>
+      {% if amap_key %}
+        <div id="day-controls" style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"></div>
+        <div id="amap" style="width:100%; height:420px; border:1px solid #e5e7eb; border-radius:8px;"></div>
+        <div class="muted" style="margin-top:6px;">出行方式：{{ '驾车' if (travel_mode or 'driving') == 'driving' else ('步行' if travel_mode == 'walking' else ('骑行' if travel_mode == 'riding' else '驾车')) }}。在地图上显示酒店与每日行程景点，并用真实路线标注每日路径。</div>
+      {% else %}
+        <div class="error" style="background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; padding:8px; border-radius:6px;">
+          未配置高德地图 API Key，无法加载地图。请在 <code>travel_planner_agent/config.py</code> 中设置 <code>AMAP_WEB_KEY</code> 或导出环境变量 <code>AMAP_WEB_KEY</code>。
+        </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <script>
+    (function() {
+      const startEl = document.getElementById('start_date');
+      const endEl = document.getElementById('end_date');
+      const hintEl = document.getElementById('days_auto_hint');
+
+      function computeDays() {
+        const s = startEl && startEl.value;
+        const e = endEl && endEl.value;
+        if (s && e) {
+          try {
+            const sd = new Date(s);
+            const ed = new Date(e);
+            const ms = ed - sd;
+            const d = Math.floor(ms / (1000*60*60*24)) + 1;
+            if (d > 0) {
+              if (hintEl) {
+                hintEl.textContent = `已自动计算天数：${d} 天`;
+              }
+              return;
+            }
+          } catch (err) {
+            // ignore
+          }
+        }
+        if (hintEl) {
+          hintEl.textContent = '请选择完整的开始和结束日期，以自动计算出行天数';
+        }
+      }
+
+      if (startEl) startEl.addEventListener('change', computeDays);
+      if (endEl) endEl.addEventListener('change', computeDays);
+      computeDays();
+    })();
+  </script>
+  {% if result and amap_key %}
+  {% if amap_js_sec_code %}
+  <script>
+    window._AMapSecurityConfig = { securityJsCode: '{{ amap_js_sec_code }}' };
+  </script>
+  {% endif %}
+  <script src="https://webapi.amap.com/maps?v=2.0&key={{ amap_key }}&plugin=AMap.Geocoder,AMap.PlaceSearch,AMap.Driving,AMap.Walking,AMap.Riding"></script>
+  <script>
+    (function(){
+      try {
+        // 仅从DOM提取每日景点名称（index页面不嵌入结果JSON）
+        function collectDayStopsFromDom() {
+          var container = document.getElementById('schedule-section');
+          var days = [];
+          if (!container) return days;
+          var dayCards = container.querySelectorAll(':scope > .card');
+          dayCards.forEach(function(card){
+            var arr = [];
+            card.querySelectorAll('ul > li').forEach(function(li){
+              var t = (li.textContent || '').trim();
+              if (t.startsWith('餐厅：')) return; // 跳过餐饮条目
+              var m = t.match(/^([^（|｜]+)[（|｜]/);
+              if (m && m[1]) {
+                arr.push(m[1].trim());
+              } else {
+                var fallback = t.split('｜')[0].split('(')[0].trim();
+                if (fallback) arr.push(fallback);
+              }
+            });
+            days.push(arr);
+          });
+          return days;
+        }
+        var cityRaw = "{{ result['行程概览']['城市'] }}";
+        var destRaw = "{{ result['行程概览']['目的地'] }}";
+        function normalizeCity(s){
+          if (!s) return '';
+          var t = String(s).trim();
+          t = t.split(/[、，,\/\\\s]+/)[0];
+          t = t.replace(/市$/,'');
+          return t;
+        }
+        var city = normalizeCity(cityRaw) || normalizeCity(destRaw);
+        var hotelName = "{{ result['住宿推荐']['name'] }}";
+        var dayStops = collectDayStopsFromDom();
+
+        // 使用2D视图，降低预览环境对矢量瓦片的要求
+        var map = new AMap.Map('amap', { zoom: 12, center: [116.397428, 39.90923], viewMode: '2D' });
+        var geocoder = new AMap.Geocoder({ city: city });
+        var placeSearch = new AMap.PlaceSearch({ city: city });
+        var centerSet = false;
+        function setInitialCenter(cityName) {
+          geocoder.getLocation(cityName, function(status, result){
+            if (status === 'complete' && result && result.geocodes && result.geocodes.length > 0) {
+              var gc = result.geocodes[0];
+              var center = [parseFloat(gc.location.lng), parseFloat(gc.location.lat)];
+              map.setCenter(center); map.setZoom(12); centerSet = true;
+            } else {
+              placeSearch.search(cityName, function(psStatus, psResult){
+                if (psStatus === 'complete' && psResult && psResult.poiList && psResult.poiList.pois && psResult.poiList.pois.length > 0) {
+                  var poi = psResult.poiList.pois[0];
+                  if (poi.location) { var center2 = [parseFloat(poi.location.lng), parseFloat(poi.location.lat)]; map.setCenter(center2); map.setZoom(12); centerSet = true; }
+                }
+              });
+            }
+          });
+        }
+        var router;
+        var __mode = "{{ travel_mode or 'driving' }}";
+        function initRouterByMode(mode){
+          if (mode === 'walking') { router = new AMap.Walking({ map: null }); }
+          else if (mode === 'riding') { router = new AMap.Riding({ map: null }); }
+          else { router = new AMap.Driving({ map: null, policy: AMap.DrivingPolicy.LEAST_TIME, showTraffic: false }); }
+        }
+        initRouterByMode(__mode);
+        var palette = ['#2563eb','#16a34a','#dc2626','#7c3aed','#f59e0b','#0ea5e9'];
+        setInitialCenter(city);
+        var dayRoutes = [];
+        var currentRoutes = [];
+        var dayMarkers = [];
+        var currentMarkers = [];
+        var dayLinesRaw = [];
+        var currentDayIndex = 0;
+        var renderedOnce = false;
+
+        function createMarker(lnglat, title, type, color) {
+          return new AMap.Marker({ position: lnglat, title: title, icon: type === 'hotel' ? 'https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png' : 'https://webapi.amap.com/theme/v1.3/markers/n/mark_r.png' });
+        }
+        function geocode(address) {
+          return new Promise(function(resolve){
+            geocoder.getLocation(address, function(status, result){
+              if (status === 'complete' && result && result.geocodes && result.geocodes.length > 0) {
+                var gc = result.geocodes[0]; resolve([parseFloat(gc.location.lng), parseFloat(gc.location.lat)]);
+              } else {
+                placeSearch.search(address, function(psStatus, psResult){
+                  if (psStatus === 'complete' && psResult && psResult.poiList && psResult.poiList.pois && psResult.poiList.pois.length > 0) {
+                    var poi = psResult.poiList.pois[0]; if (poi.location) { resolve([parseFloat(poi.location.lng), parseFloat(poi.location.lat)]); return; }
+                  }
+                  placeSearch.search(address.replace(city + ' ', ''), function(psStatus2, psResult2){
+                    if (psStatus2 === 'complete' && psResult2 && psResult2.poiList && psResult2.poiList.pois && psResult2.poiList.pois.length > 0) {
+                      var poi2 = psResult2.poiList.pois[0]; if (poi2.location) { resolve([parseFloat(poi2.location.lng), parseFloat(poi2.location.lat)]); return; }
+                    }
+                    console.warn('地理编码/POI 搜索均失败：', address, status, result); resolve(null);
+                  });
+                });
+              }
+            });
+          });
+        }
+        async function routeBetween(o, d) {
+          return new Promise(function(resolve){
+            router.search(new AMap.LngLat(o[0], o[1]), new AMap.LngLat(d[0], d[1]), function(status, result){
+              var pts = [];
+              try {
+                if (status === 'complete' && result) {
+                  var r = (result.routes && result.routes[0]) || (result.paths && result.paths[0]) || null;
+                  if (r) {
+                    if (r.steps && r.steps.length) { r.steps.forEach(function(step){ if (step.path && step.path.length) { step.path.forEach(function(p){ pts.push([p.lng, p.lat]); }); } }); }
+                    else if (r.path && r.path.length) { r.path.forEach(function(p){ pts.push([p.lng, p.lat]); }); }
+                    else if (r.rides && r.rides.length) { r.rides.forEach(function(ride){ if (ride.path && ride.path.length) { ride.path.forEach(function(p){ pts.push([p.lng, p.lat]); }); } }); }
+                  }
+                }
+              } catch (e) { console.warn('解析路线失败：', e); }
+              resolve(pts || []);
+            });
+          });
+        }
+        function renderDay(dayIndex) {
+          currentDayIndex = dayIndex;
+          currentRoutes.forEach(function(r){ r.setMap(null); }); currentRoutes = [];
+          currentMarkers.forEach(function(m){ m.setMap(null); }); currentMarkers = [];
+          var routes = dayRoutes[dayIndex] || []; routes.forEach(function(r){ r.setMap(map); }); currentRoutes = routes.slice();
+          var markers = dayMarkers[dayIndex] || []; markers.forEach(function(m){ m.setMap(map); }); currentMarkers = markers.slice();
+          var overlays = currentRoutes.concat(currentMarkers); if (overlays.length) { map.setFitView(overlays); }
+          var controls = document.getElementById('day-controls');
+          if (controls) {
+            controls.querySelectorAll('button[data-day]').forEach(function(btn){
+              if (parseInt(btn.dataset.day) === dayIndex) { btn.style.background = '#2563eb'; btn.style.color = '#fff'; }
+              else { btn.style.background = '#111827'; btn.style.color = '#fff'; }
+            });
+          }
+        }
+        function buildDayControls() {
+          var controls = document.getElementById('day-controls'); if (!controls) return;
+          controls.innerHTML = '';
+          var label = document.createElement('span'); label.textContent = '选择天数：'; label.className = 'muted'; controls.appendChild(label);
+          var container = document.getElementById('schedule-section');
+          var templateDays = 0;
+          if (container) {
+            var directCards = Array.prototype.filter.call(container.children, function(node){ return node && node.classList && node.classList.contains('card'); });
+            templateDays = directCards.length || 0;
+          }
+          var nDays = Math.max(templateDays, dayStops.length); if (nDays === 0) { nDays = 1; }
+          for (var i = 0; i < nDays; i++) {
+            var btn = document.createElement('button'); btn.type = 'button'; btn.dataset.day = String(i); btn.textContent = '第' + (i+1) + '天'; btn.className = 'secondary'; btn.style.padding = '6px 10px'; btn.style.borderRadius = '6px'; btn.style.cursor = 'pointer';
+            (function(idx){ btn.addEventListener('click', function(){ renderDay(idx); }); })(i);
+            controls.appendChild(btn);
+          }
+          var sep = document.createElement('span'); sep.textContent = '｜'; sep.className = 'muted'; sep.style.margin = '0 6px'; controls.appendChild(sep);
+          var modeLabel = document.createElement('span'); modeLabel.textContent = '出行方式：'; modeLabel.className = 'muted'; controls.appendChild(modeLabel);
+          ['driving','walking','riding'].forEach(function(m){
+            var btn = document.createElement('button'); btn.type = 'button'; btn.dataset.mode = m; btn.textContent = (m==='driving'?'驾车':(m==='walking'?'步行':'骑行')); btn.className = 'secondary'; btn.style.padding = '6px 10px'; btn.style.borderRadius = '6px'; btn.style.cursor = 'pointer';
+            if (__mode === m) { btn.style.background = '#2563eb'; btn.style.color = '#fff'; }
+            btn.addEventListener('click', async function(){ __mode = this.dataset.mode; controls.querySelectorAll('button[data-mode]').forEach(function(b){ if (b.dataset.mode === __mode) { b.style.background = '#2563eb'; b.style.color = '#fff'; } else { b.style.background = '#111827'; b.style.color = '#fff'; } }); initRouterByMode(__mode); await rebuildRoutes(); renderDay(currentDayIndex); });
+            controls.appendChild(btn);
+          });
+        }
+        (async function(){
+          var hotelCoord = null; var hotelMarker = null;
+          if (hotelName) { var h = await geocode(city + ' ' + hotelName); if (h) { hotelCoord = h; hotelMarker = createMarker(h, hotelName, 'hotel'); if (!centerSet) { map.setCenter(h); centerSet = true; } } }
+          buildDayControls();
+          for (var di = 0; di < dayStops.length; di++) {
+            var stops = dayStops[di]; if (!Array.isArray(stops) || stops.length === 0) { dayRoutes[di] = []; dayMarkers[di] = (hotelCoord && hotelMarker) ? [hotelMarker] : []; dayLinesRaw[di] = (hotelCoord && hotelMarker) ? [hotelCoord] : []; if (di === 0 && !renderedOnce) { renderDay(0); renderedOnce = true; } continue; }
+            var color = palette[di % palette.length]; var dayLine = []; var markersArr = [];
+            if (hotelCoord && hotelMarker) { dayLine.push(hotelCoord); markersArr.push(hotelMarker); }
+            for (var si = 0; si < stops.length; si++) {
+              var name = stops[si]; if (!name) continue; var p = await geocode(city + ' ' + name);
+              if (p) { var mk = createMarker(p, name, 'spot', color); try { mk.setLabel({ content: String(si+1), direction: 'top' }); } catch(e) {} markersArr.push(mk); if (!centerSet) { map.setCenter(p); centerSet = true; } dayLine.push(p); }
+            }
+            if (hotelCoord && stops.length > 0) { dayLine.push(hotelCoord); }
+            dayRoutes[di] = dayRoutes[di] || [];
+            for (var i = 0; i < dayLine.length - 1; i++) {
+              var seg = await routeBetween(dayLine[i], dayLine[i+1]); var pathToDraw = (seg && seg.length >= 2) ? seg : [dayLine[i], dayLine[i+1]];
+              var routeLine = new AMap.Polyline({ path: pathToDraw, isOutline: true, outlineColor: '#ffffff', borderWeight: 2, strokeColor: color, strokeOpacity: 0.9, strokeWeight: 4 });
+              dayRoutes[di].push(routeLine);
+            }
+            dayMarkers[di] = markersArr; dayLinesRaw[di] = dayLine.slice(); if (di === 0 && !renderedOnce) { renderDay(0); renderedOnce = true; }
+          }
+          if (!renderedOnce) { renderDay(0); renderedOnce = true; }
+        })();
+        async function rebuildRoutes(){
+          currentRoutes.forEach(function(r){ r.setMap(null); }); currentRoutes = []; dayRoutes = [];
+          for (var di = 0; di < dayLinesRaw.length; di++) {
+            var dayLine = dayLinesRaw[di] || []; dayRoutes[di] = []; if (!Array.isArray(dayLine) || dayLine.length < 2) { continue; }
+            for (var i = 0; i < dayLine.length - 1; i++) {
+              var seg = await routeBetween(dayLine[i], dayLine[i+1]); var pathToDraw = (seg && seg.length >= 2) ? seg : [dayLine[i], dayLine[i+1]]; var color = palette[di % palette.length];
+              var routeLine = new AMap.Polyline({ path: pathToDraw, isOutline: true, outlineColor: '#ffffff', borderWeight: 2, strokeColor: color, strokeOpacity: 0.9, strokeWeight: 4 });
+              dayRoutes[di].push(routeLine);
+            }
+          }
+        }
+      } catch (e) { console.error('地图初始化异常：', e); }
+    })();
+  </script>
+  {% endif %}
+  <script>
+    // 通用语音录音、16k PCM WAV编码，并上传到后端ASR接口
+    (function() {
+      const state = {
+        audioCtx: null,
+        stream: null,
+        source: null,
+        processor: null,
+        recording: false,
+        samples: [],
+        inputSampleRate: 44100,
+        targetEl: null,
+        btnEl: null,
+        timerId: null,
+        // 语音活动检测（VAD）相关
+        startedSpeaking: false,
+        silenceMs: 0,
+        recordedMs: 0,
+      };
+
+      async function initAudio() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          alert('浏览器不支持麦克风录音');
+          return false;
+        }
+        try {
+          state.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (err) {
+          let msg = '无法访问麦克风：' + (err && err.message ? err.message : err);
+          if (err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) {
+            msg = '未授予麦克风权限。请在浏览器地址栏允许麦克风访问；若在IDE预览中，请在外部浏览器打开页面并授权。';
+          } else if (err && (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError')) {
+            msg = '未检测到麦克风设备。请检查系统设置或外接设备连接。';
+          }
+          alert(msg);
+          return false;
+        }
+        state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        state.inputSampleRate = state.audioCtx.sampleRate || 44100;
+        state.source = state.audioCtx.createMediaStreamSource(state.stream);
+        // 使用 ScriptProcessor 收集PCM
+        const bufferSize = 4096;
+        state.processor = state.audioCtx.createScriptProcessor(bufferSize, 1, 1);
+        state.processor.onaudioprocess = function(e) {
+          if (!state.recording) return;
+          const input = e.inputBuffer.getChannelData(0);
+          // 复制当前帧的Float32样本
+          const samples = new Float32Array(input.length);
+          samples.set(input);
+          state.samples.push(samples);
+
+          // 简单VAD：基于RMS能量判断是否在说话，静音超过阈值自动结束
+          try {
+            let sum = 0;
+            for (let i = 0; i < input.length; i++) {
+              const v = input[i];
+              sum += v * v;
+            }
+            const rms = Math.sqrt(sum / (input.length || 1));
+            const chunkMs = (input.length / state.inputSampleRate) * 1000;
+            state.recordedMs += chunkMs;
+            const VAD_THRESH = 0.015; // 语音能量阈值，越小越敏感
+            const VAD_SILENCE_MS = 800; // 静音时长阈值（毫秒）
+            if (rms > VAD_THRESH) {
+              state.startedSpeaking = true;
+              state.silenceMs = 0;
+            } else if (state.startedSpeaking) {
+              state.silenceMs += chunkMs;
+            }
+            if (state.startedSpeaking && state.silenceMs >= VAD_SILENCE_MS && state.recordedMs > 600) {
+              // 检测到一句话结束，自动停止并上传
+              state.recording = false;
+              Promise.resolve().then(async () => { await stopRecording(); await uploadAndFill(); });
+            }
+          } catch (_) {}
+        };
+        state.source.connect(state.processor);
+        state.processor.connect(state.audioCtx.destination);
+        return true;
+      }
+
+      function flattenSamples(chunks) {
+        let total = 0;
+        for (let i = 0; i < chunks.length; i++) total += chunks[i].length;
+        const result = new Float32Array(total);
+        let offset = 0;
+        for (let i = 0; i < chunks.length; i++) {
+          result.set(chunks[i], offset);
+          offset += chunks[i].length;
+        }
+        return result;
+      }
+
+      function trimSilenceFloat32(buffer, threshold = 0.01) {
+        // 去除前后静音，减少编码与上传体积
+        let start = 0;
+        let end = buffer.length - 1;
+        // 前向查找首个超过阈值的样本
+        for (let i = 0; i < buffer.length; i++) {
+          if (Math.abs(buffer[i]) > threshold) { start = i; break; }
+        }
+        // 反向查找最后一个超过阈值的样本
+        for (let i = buffer.length - 1; i >= 0; i--) {
+          if (Math.abs(buffer[i]) > threshold) { end = i; break; }
+        }
+        if (end <= start) return buffer; // 全静音或异常，保留原始
+        return buffer.subarray(start, end + 1);
+      }
+
+      function downsampleBuffer(buffer, sampleRate, outRate) {
+        if (outRate === sampleRate) {
+          return buffer;
+        }
+        const ratio = sampleRate / outRate;
+        const newLength = Math.round(buffer.length / ratio);
+        const result = new Float32Array(newLength);
+        let offsetResult = 0;
+        let offsetBuffer = 0;
+        while (offsetResult < newLength) {
+          const nextOffsetBuffer = Math.round((offsetResult + 1) * ratio);
+          let accum = 0, count = 0;
+          for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
+            accum += buffer[i];
+            count++;
+          }
+          result[offsetResult] = accum / (count || 1);
+          offsetResult++;
+          offsetBuffer = nextOffsetBuffer;
+        }
+        return result;
+      }
+
+      function encodeWAV(samples, sampleRate) {
+        // 16-bit PCM
+        const buffer = new ArrayBuffer(44 + samples.length * 2);
+        const view = new DataView(buffer);
+        // RIFF header
+        writeString(view, 0, 'RIFF');
+        view.setUint32(4, 36 + samples.length * 2, true);
+        writeString(view, 8, 'WAVE');
+        writeString(view, 12, 'fmt ');
+        view.setUint32(16, 16, true); // PCM chunk size
+        view.setUint16(20, 1, true); // format = 1
+        view.setUint16(22, 1, true); // channels = 1
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * 2, true); // byte rate
+        view.setUint16(32, 2, true); // block align
+        view.setUint16(34, 16, true); // bits per sample
+        writeString(view, 36, 'data');
+        view.setUint32(40, samples.length * 2, true);
+        // PCM samples
+        floatTo16BitPCM(view, 44, samples);
+        return new Blob([view], { type: 'audio/wav' });
+      }
+
+      function writeString(view, offset, string) {
+        for (let i = 0; i < string.length; i++) {
+          view.setUint8(offset + i, string.charCodeAt(i));
+        }
+      }
+
+      function floatTo16BitPCM(view, offset, input) {
+        for (let i = 0; i < input.length; i++, offset += 2) {
+          // clamp
+          let s = Math.max(-1, Math.min(1, input[i]));
+          view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+        }
+      }
+
+      async function stopRecording() {
+        state.recording = false;
+        try {
+          if (state.timerId) {
+            clearTimeout(state.timerId);
+            state.timerId = null;
+          }
+          state.processor && state.processor.disconnect();
+          state.source && state.source.disconnect();
+          if (state.stream) {
+            state.stream.getTracks().forEach(t => t.stop());
+          }
+          if (state.audioCtx) {
+            await state.audioCtx.close();
+          }
+        } catch (e) {}
+      }
+
+      async function uploadAndFill() {
+        const flat = flattenSamples(state.samples);
+        // 先裁剪尾部与头部静音，再降采样编码
+        const trimmed = trimSilenceFloat32(flat, 0.01);
+        const down = downsampleBuffer(trimmed, state.inputSampleRate, 16000);
+        const wavBlob = encodeWAV(down, 16000);
+        const fd = new FormData();
+        fd.append('file', wavBlob, 'voice.wav');
+        try {
+          if (state.btnEl) {
+            state.btnEl.textContent = '识别中…';
+            state.btnEl.disabled = true;
+          }
+          const resp = await fetch('/api/asr', { method: 'POST', body: fd });
+          const data = await resp.json();
+          if (data && data.error) {
+            alert('语音识别错误：' + data.error);
+          }
+          const text = (data && data.text) ? ('' + data.text).trim() : '';
+          if (state.targetEl) {
+            // 将识别文本填入目标字段
+            state.targetEl.value = text;
+            state.targetEl.dispatchEvent(new Event('input'));
+            state.targetEl.dispatchEvent(new Event('change'));
+          }
+          if (!text) {
+            // 给出空结果提示，帮助用户判断是否需要重试
+            console.warn('ASR未返回有效文本');
+          }
+        } catch (err) {
+          alert('语音识别失败：' + err);
+        } finally {
+          if (state.btnEl) {
+            state.btnEl.textContent = '语音输入';
+            state.btnEl.disabled = false;
+          }
+          // 重置缓存
+          state.samples = [];
+          state.targetEl = null;
+          state.btnEl = null;
+        }
+      }
+
+      window.voiceInput = {
+        async start(selector, btnEl) {
+          if (state.recording) {
+            // 已在录音：停止并上传
+            await stopRecording();
+            await uploadAndFill();
+            return;
+          }
+          state.targetEl = document.querySelector(selector);
+          if (!state.targetEl) {
+            alert('未找到目标输入框');
+            return;
+          }
+          state.samples = [];
+          state.btnEl = btnEl;
+          state.startedSpeaking = false;
+          state.silenceMs = 0;
+          state.recordedMs = 0;
+          const ok = await initAudio();
+          if (!ok && ok !== undefined) return;
+          state.recording = true;
+          if (state.btnEl) state.btnEl.textContent = '录音中…（再次点击停止）';
+          // 自动在8秒后停止并识别（更长录音时长），并配合VAD提前结束
+          state.timerId = setTimeout(async () => {
+            if (state.recording) {
+              await stopRecording();
+              await uploadAndFill();
+            }
+          }, 8000);
+        }
+      };
+    })();
+  </script>
+</body>
+</html>

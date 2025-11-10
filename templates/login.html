@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>登录 - AI旅行规划师</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin: 24px; }
+    .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; max-width: 520px; margin: 0 auto; }
+    input { width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px; margin-top: 8px; box-sizing: border-box; }
+    button { margin-top: 12px; padding: 10px 16px; border: none; border-radius: 6px; background: #2563eb; color: white; cursor: pointer; width: 100%; box-sizing: border-box; }
+    .topbar { display:flex; gap:8px; align-items:center; margin-bottom:12px; }
+    .error { background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; padding:8px; border-radius:6px; margin-top:8px; }
+    a { color:#2563eb; text-decoration:none; }
+    .muted { color:#6b7280; }
+    .brand { color:#2563eb; }
+  </style>
+  </head>
+<body>
+  <div class="topbar">
+    <h1 style="margin:0;"><span class="brand">ai旅行规划师</span> —— 登录</h1>
+  </div>
+  <div class="card">
+    <form action="/login" method="post">
+      <input type="hidden" name="next" value="{{ next }}" />
+      <label>邮箱</label>
+      <input type="text" name="username" required />
+      <label>密码</label>
+      <input type="password" name="password" required />
+      <button type="submit">登录</button>
+      {% if error %}
+        <div class="error">{{ error }}</div>
+      {% endif %}
+    </form>
+    <div style="margin-top:8px;">
+      没有账号？<a href="/register">注册</a>
+    </div>
+  </div>
+</body>
+</html>

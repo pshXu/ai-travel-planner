@@ -1,0 +1,22 @@
+# VCS
+.git
+.gitignore
+
+# Python caches and environments
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS/editor artifacts
+.DS_Store
+.vscode/
+
+# Local databases and secrets
+app.db
+.env
+.env.*
+
+# Build outputs
+dist/
+build/

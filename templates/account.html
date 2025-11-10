@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>用户管理 - AI旅行规划师</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin: 24px; }
+    h1 { margin-bottom: 12px; }
+    .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    label { display:block; margin-top:8px; }
+    input { width: 100%; padding: 8px; margin-top: 6px; }
+    button { padding: 8px 16px; border: none; border-radius: 6px; background: #2563eb; color: white; cursor: pointer; }
+    .secondary { background: #6b7280; }
+    .muted { color: #6b7280; }
+    .topbar { display:flex; gap:8px; align-items:center; margin-bottom:12px; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h1 style="margin:0;">用户管理</h1>
+    <div style="flex:1"></div>
+    <a href="/plans"><button class="secondary">返回我的计划</button></a>
+  </div>
+
+  {% if message %}
+    <div class="card" style="background:#ecfeff; border-color:#a5f3fc;">{{ message }}</div>
+  {% endif %}
+  {% if error %}
+    <div class="card" style="background:#fef2f2; border-color:#fecaca; color:#b91c1c;">{{ error }}</div>
+  {% endif %}
+
+  <div class="card">
+    <div style="font-weight:600; margin-bottom:8px;">账号信息</div>
+    {% if user %}
+      <div>当前用户：<strong>{{ user.username or user.id }}</strong></div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div style="font-weight:600; margin-bottom:8px;">修改密码</div>
+    <form action="/account/password" method="post">
+      <label>当前密码</label>
+      <input type="password" name="old_password" required />
+      <label>新密码</label>
+      <input type="password" name="new_password" required />
+      <label>确认新密码</label>
+      <input type="password" name="confirm_password" required />
+      <div style="margin-top:12px;"><button type="submit">确认修改</button></div>
+    </form>
+    <div class="muted" style="margin-top:8px;">成功后将更新为新密码登录。</div>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:600; margin-bottom:8px;">切换账号</div>
+    <div>退出当前账号后可使用其他凭证登录。</div>
+    <div style="margin-top:12px;">
+      <a href="/logout"><button class="secondary">退出并前往登录</button></a>
+    </div>
+  </div>
+
+</body>
+</html>

@@ -6,3 +6,5 @@ websockets
 dashscope
 openai
 supabase
+itsdangerous
+starlette

@@ -10,11 +10,9 @@
 
 1. 进入项目目录：
    - `cd ai-travel-planner`
-2. 运行命令行示例（静态/LLM均支持）：
-   - `python main.py`
-3. 启动 Web 界面：
+2. 启动 Web 界面：
    - 安装依赖：`pip install -r requirements.txt`
-   - 启动服务：`uvicorn web_app:app --reload --port 8000`
+   - 启动服务：`DEEPSEEK_API_KEY="你的密钥" - uvicorn web_app:app --reload --port 8000`
    - 打开：`http://127.0.0.1:8000/`
 
 

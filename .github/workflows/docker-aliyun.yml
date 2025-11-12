@@ -32,7 +32,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}/${{ secrets.IMAGE_NAME }}
+          images: crpi-ni4zbq0suiiwqjyk.cn-hangzhou.personal.cr.aliyuncs.com/homeworktest/ai-travel-planner
           tags: |
             type=raw,value=latest
             type=sha
